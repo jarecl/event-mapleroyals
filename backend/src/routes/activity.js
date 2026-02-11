@@ -278,7 +278,57 @@ export function createActivityRoutes(app) {
     }
   });
 
-  // 关闭活动（创建者）
+  // 更新活动状态（创建者或管理员）
+  app.put('/api/activities/:id/status', async (c, next) => {
+    const { JWT_SECRET } = c.env;
+    return authMiddleware(JWT_SECRET)(c, next);
+  }, async (c) => {
+    try {
+      const { DB } = c.env;
+      const currentUser = getCurrentUser(c);
+      const { id } = c.req.param();
+      const { status } = await c.req.json();
+
+      // 验证状态值
+      const validStatuses = ['open', 'in_progress', 'completed', 'cancelled'];
+      if (!validStatuses.includes(status)) {
+        return c.json({ error: '无效的状态值' }, 400);
+      }
+
+      const activity = await DB.get(
+        'SELECT id, creator_id FROM activities WHERE id = $1',
+        [id]
+      );
+
+      if (!activity) {
+        return c.json({ error: '活动不存在' }, 404);
+      }
+
+      // 只有创建者或管理员可以更新状态
+      if (activity.creator_id !== currentUser.id && !currentUser.isAdmin) {
+        return c.json({ error: '只有活动创建者或管理员可以更新状态' }, 403);
+      }
+
+      await DB.run(
+        'UPDATE activities SET status = $1 WHERE id = $2',
+        [status, id]
+      );
+
+      const statusTextMap = {
+        open: '募集中',
+        in_progress: '进行中',
+        completed: '已完成',
+        cancelled: '已取消'
+      };
+
+      return c.json({ message: `活动状态已更新为${statusTextMap[status]}` });
+    } catch (error) {
+      console.error('更新活动状态错误:', error);
+      return c.json({ error: '更新活动状态失败' }, 500);
+    }
+  });
+
+  // 关闭活动（创建者）- 保留旧接口兼容
   app.post('/api/activities/:id/close', async (c, next) => {
     const { JWT_SECRET } = c.env;
     return authMiddleware(JWT_SECRET)(c, next);
@@ -297,13 +347,13 @@ export function createActivityRoutes(app) {
         return c.json({ error: '活动不存在' }, 404);
       }
 
-      if (activity.creator_id !== currentUser.id) {
-        return c.json({ error: '只有活动创建者可以关闭活动' }, 403);
+      if (activity.creator_id !== currentUser.id && !currentUser.isAdmin) {
+        return c.json({ error: '只有活动创建者或管理员可以关闭活动' }, 403);
       }
 
       await DB.run(
         'UPDATE activities SET status = $1 WHERE id = $2',
-        ['closed', id]
+        ['cancelled', id]
       );
 
       return c.json({ message: '活动已关闭' });
@@ -313,7 +363,7 @@ export function createActivityRoutes(app) {
     }
   });
 
-  // 完成活动（创建者）
+  // 完成活动（创建者）- 保留旧接口兼容
   app.post('/api/activities/:id/complete', async (c, next) => {
     const { JWT_SECRET } = c.env;
     return authMiddleware(JWT_SECRET)(c, next);
@@ -332,8 +382,8 @@ export function createActivityRoutes(app) {
         return c.json({ error: '活动不存在' }, 404);
       }
 
-      if (activity.creator_id !== currentUser.id) {
-        return c.json({ error: '只有活动创建者可以完成活动' }, 403);
+      if (activity.creator_id !== currentUser.id && !currentUser.isAdmin) {
+        return c.json({ error: '只有活动创建者或管理员可以完成活动' }, 403);
       }
 
       await DB.run(

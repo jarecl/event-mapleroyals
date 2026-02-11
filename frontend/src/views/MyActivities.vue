@@ -73,9 +73,11 @@ const loading = ref(false)
 
 const statusText = (status) => {
   const map = {
-    open: '进行中',
-    closed: '已关闭',
-    completed: '已完成'
+    open: '募集中',
+    in_progress: '进行中',
+    completed: '已完成',
+    cancelled: '已取消',
+    closed: '已关闭'
   }
   return map[status] || status
 }
@@ -83,8 +85,10 @@ const statusText = (status) => {
 const getStatusType = (status) => {
   const map = {
     open: 'success',
-    closed: 'warning',
-    completed: 'info'
+    in_progress: 'primary',
+    completed: 'info',
+    cancelled: 'danger',
+    closed: 'warning'
   }
   return map[status] || ''
 }

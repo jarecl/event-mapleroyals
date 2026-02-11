@@ -19,9 +19,10 @@
       <el-form :inline="true" :model="filterForm">
         <el-form-item label="状态">
           <el-select v-model="filterForm.status" placeholder="全部状态" clearable @change="loadActivities" style="width: 140px">
-            <el-option label="进行中" value="open" />
-            <el-option label="已关闭" value="closed" />
+            <el-option label="募集中" value="open" />
+            <el-option label="进行中" value="in_progress" />
             <el-option label="已完成" value="completed" />
+            <el-option label="已取消" value="cancelled" />
           </el-select>
         </el-form-item>
         <el-form-item label="类型">
@@ -102,9 +103,11 @@ const filterForm = reactive({
 
 const statusText = (status) => {
   const map = {
-    open: '进行中',
-    closed: '已关闭',
-    completed: '已完成'
+    open: '募集中',
+    in_progress: '进行中',
+    completed: '已完成',
+    cancelled: '已取消',
+    closed: '已关闭'
   }
   return map[status] || status
 }
@@ -112,8 +115,10 @@ const statusText = (status) => {
 const getStatusType = (status) => {
   const map = {
     open: 'success',
-    closed: 'warning',
-    completed: 'info'
+    in_progress: 'primary',
+    completed: 'info',
+    cancelled: 'danger',
+    closed: 'warning'
   }
   return map[status] || ''
 }

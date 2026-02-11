@@ -7,6 +7,19 @@
           <div class="page-header">
             <h1 class="page-title">{{ activity.title }}</h1>
             <div class="action-buttons">
+              <!-- 状态编辑下拉栏（仅创建者或管理员） -->
+              <el-select
+                v-if="canEditStatus"
+                v-model="activity.status"
+                style="width: 120px; margin-right: 12px"
+                size="default"
+                @change="updateStatus"
+              >
+                <el-option label="募集中" value="open" />
+                <el-option label="进行中" value="in_progress" />
+                <el-option label="已完成" value="completed" />
+                <el-option label="已取消" value="cancelled" />
+              </el-select>
               <el-button
                 v-if="isCreator && activity.status === 'open'"
                 @click="closeActivity"
@@ -14,7 +27,7 @@
                 关闭活动
               </el-button>
               <el-button
-                v-if="isCreator"
+                v-if="isCreator || isAdmin"
                 type="danger"
                 @click="deleteActivity"
               >
@@ -169,6 +182,14 @@ const isCreator = computed(() => {
   return activity.value?.creator_id === userStore.user?.id
 })
 
+const isAdmin = computed(() => {
+  return userStore.user?.isAdmin === true
+})
+
+const canEditStatus = computed(() => {
+  return isCreator.value || isAdmin.value
+})
+
 const isParticipant = computed(() => {
   return activity.value?.participants.some(p => p.username === userStore.user?.username)
 })
@@ -181,9 +202,11 @@ const currentUsername = computed(() => userStore.user?.username)
 
 const statusText = (status) => {
   const map = {
-    open: '进行中',
-    closed: '已关闭',
-    completed: '已完成'
+    open: '募集中',
+    in_progress: '进行中',
+    completed: '已完成',
+    cancelled: '已取消',
+    closed: '已关闭'
   }
   return map[status] || status
 }
@@ -191,8 +214,10 @@ const statusText = (status) => {
 const getStatusType = (status) => {
   const map = {
     open: 'success',
-    closed: 'warning',
-    completed: 'info'
+    in_progress: 'primary',
+    completed: 'info',
+    cancelled: 'danger',
+    closed: 'warning'
   }
   return map[status] || ''
 }
@@ -289,6 +314,20 @@ const closeActivity = async () => {
     // 防抖错误和取消操作不显示提示
     if (err !== 'cancel' && !err.silent) {
       ElMessage.error(err.response?.data?.error || '关闭失败')
+    }
+  }
+}
+
+const updateStatus = async (newStatus) => {
+  try {
+    await api.put(`/activities/${route.params.id}/status`, { status: newStatus })
+    ElMessage.success('状态已更新')
+    await loadActivity()
+  } catch (err) {
+    if (!err.silent) {
+      ElMessage.error(err.response?.data?.error || '状态更新失败')
+      // 恢复原状态
+      await loadActivity()
     }
   }
 }
