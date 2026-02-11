@@ -44,8 +44,8 @@ export function validateCharacterName(name) {
  */
 export function validateLevel(level) {
   const num = parseInt(level);
-  if (isNaN(num) || num < 1 || num > 200) {
-    return { valid: false, message: '等级必须在1-200之间' };
+  if (isNaN(num) || num < 0 || num > 200) {
+    return { valid: false, message: '等级必须在0-200之间' };
   }
   return { valid: true, message: '' };
 }
@@ -57,13 +57,18 @@ export function validateLevel(level) {
  */
 export function validateJob(job) {
   const validJobs = [
-    'Beginner', 'Warrior', 'Magician', 'Bowman', 'Thief', 'Pirate',
-    'Fighter', 'Page', 'Spearman', 'FPWizard', 'ILWizard', 'Cleric',
-    'Hunter', 'Crossbowman', 'Assassin', 'Bandit', 'Brawler', 'Gunslinger',
-    'Crusader', 'WhiteKnight', 'DragonKnight', 'FPMage', 'ILMage', 'Priest',
-    'Ranger', 'Sniper', 'Hermit', 'ChiefBandit', 'Marauder', 'Outlaw',
-    'Hero', 'Paladin', 'DarkKnight', 'FPArchMage', 'ILArchMage', 'Bishop',
-    'Bowmaster', 'Marksman', 'NightLord', 'Shadower', 'Buccaneer', 'Corsair'
+    // 战士
+    '圣骑士', '黑暗骑士', '英雄',
+    // 法师
+    '主教', '冰雷法师', '火毒法师',
+    // 射手
+    '弓箭手', '弩手',
+    // 飞侠
+    '镖飞', '刀飞',
+    // 海盗
+    '拳手', '船长',
+    // 其他
+    '无输出能力小号'
   ];
 
   if (!job || !validJobs.includes(job)) {

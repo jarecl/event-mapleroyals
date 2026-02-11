@@ -56,7 +56,7 @@
                     :value="job"
                   />
                 </el-option-group>
-                <el-option-group label="魔法师">
+                <el-option-group label="法师">
                   <el-option
                     v-for="job in magicianJobs"
                     :key="job"
@@ -64,7 +64,7 @@
                     :value="job"
                   />
                 </el-option-group>
-                <el-option-group label="弓箭手">
+                <el-option-group label="射手">
                   <el-option
                     v-for="job in bowmanJobs"
                     :key="job"
@@ -88,17 +88,25 @@
                     :value="job"
                   />
                 </el-option-group>
+                <el-option-group label="其他">
+                  <el-option
+                    v-for="job in otherJobs"
+                    :key="job"
+                    :label="job"
+                    :value="job"
+                  />
+                </el-option-group>
               </el-select>
             </el-form-item>
           </el-col>
 
           <el-col :xs="24" :sm="12" :md="4">
             <el-form-item label="等级" prop="level">
-              <el-input-number
+              <el-input
                 v-model="form.level"
-                :min="1"
-                :max="200"
-                style="width: 100%"
+                placeholder="0-200"
+                maxlength="3"
+                clearable
               />
             </el-form-item>
           </el-col>
@@ -115,11 +123,11 @@
 
         <el-row :gutter="16">
           <el-col :xs="24" :sm="12" :md="8">
-            <el-form-item label="婚姻状态">
+            <el-form-item label="婚姻角色">
               <el-select v-model="form.marriageStatus" style="width: 100%">
                 <el-option label="未婚" value="single" />
-                <el-option label="新郎" value="groom" />
-                <el-option label="新娘" value="bride" />
+                <el-option label="新郎 (gr)" value="groom" />
+                <el-option label="新娘 (br)" value="bride" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -157,7 +165,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="婚姻状态" width="100" align="center">
+            <el-table-column label="婚姻角色" width="100" align="center">
               <template #default="{ row }">
                 <el-tag v-if="row.marriage_status !== 'single'" type="warning" size="small">
                   {{ marriageText(row.marriage_status) }}
@@ -197,16 +205,17 @@ const error = ref('')
 const success = ref('')
 const formRef = ref()
 
-const warriorJobs = ['Beginner', 'Warrior', 'Fighter', 'Page', 'Spearman', 'Crusader', 'WhiteKnight', 'DragonKnight', 'Hero', 'Paladin', 'DarkKnight']
-const magicianJobs = ['Magician', 'FPWizard', 'ILWizard', 'Cleric', 'FPMage', 'ILMage', 'Priest', 'FPArchMage', 'ILArchMage', 'Bishop']
-const bowmanJobs = ['Bowman', 'Hunter', 'Crossbowman', 'Ranger', 'Sniper', 'Bowmaster', 'Marksman']
-const thiefJobs = ['Thief', 'Assassin', 'Bandit', 'Hermit', 'ChiefBandit', 'NightLord', 'Shadower']
-const pirateJobs = ['Pirate', 'Brawler', 'Gunslinger', 'Marauder', 'Outlaw', 'Buccaneer', 'Corsair']
+const warriorJobs = ['圣骑士', '黑暗骑士', '英雄']
+const magicianJobs = ['主教', '冰雷法师', '火毒法师']
+const bowmanJobs = ['弓箭手', '弩手']
+const thiefJobs = ['镖飞', '刀飞']
+const pirateJobs = ['拳手', '船长']
+const otherJobs = ['无输出能力小号']
 
 const form = reactive({
   characterName: '',
   job: '',
-  level: 1,
+  level: '',
   gender: '',
   marriageStatus: 'single'
 })
@@ -218,6 +227,22 @@ const rules = {
   job: [
     { required: true, message: '请选择职业', trigger: 'change' }
   ],
+  level: [
+    { required: true, message: '请输入等级', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        const num = parseInt(value)
+        if (isNaN(num) || num < 0 || num > 200) {
+          callback(new Error('等级必须在0-200之间'))
+        } else if (!/^\d+$/.test(value)) {
+          callback(new Error('等级必须是整数'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ],
   gender: [
     { required: true, message: '请选择性别', trigger: 'change' }
   ]
@@ -226,8 +251,8 @@ const rules = {
 const marriageText = (status) => {
   const map = {
     single: '未婚',
-    groom: '新郎',
-    bride: '新娘'
+    groom: '新郎 (gr)',
+    bride: '新娘 (br)'
   }
   return map[status] || status
 }
@@ -267,7 +292,7 @@ const handleAddRole = async () => {
     Object.assign(form, {
       characterName: '',
       job: '',
-      level: 1,
+      level: '',
       gender: '',
       marriageStatus: 'single'
     })
@@ -275,7 +300,10 @@ const handleAddRole = async () => {
 
     await loadRoles()
   } catch (err) {
-    error.value = err.response?.data?.error || '添加失败'
+    // 防抖错误不显示提示
+    if (!err.silent) {
+      error.value = err.response?.data?.error || '添加失败'
+    }
   } finally {
     adding.value = false
   }
@@ -292,7 +320,8 @@ const deleteRole = async (id) => {
     ElMessage.success('删除成功')
     await loadRoles()
   } catch (err) {
-    if (err !== 'cancel') {
+    // 防抖错误和取消操作不显示提示
+    if (err !== 'cancel' && !err.silent) {
       ElMessage.error(err.response?.data?.error || '删除失败')
     }
   }

@@ -1,12 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { setupDebounce } from '../utils/debounce'
 
 // 配置 axios
 const api = axios.create({
   baseURL: '/api',
   withCredentials: true
 })
+
+// 添加防抖功能
+setupDebounce(api)
 
 export const useUserStore = defineStore('user', () => {
   const user = ref(null)

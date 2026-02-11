@@ -246,7 +246,10 @@ const joinActivity = async () => {
     await loadActivity()
     ElMessage.success('参加成功')
   } catch (err) {
-    ElMessage.error(err.response?.data?.error || '参加失败')
+    // 防抖错误不显示提示
+    if (!err.silent) {
+      ElMessage.error(err.response?.data?.error || '参加失败')
+    }
   } finally {
     joining.value = false
   }
@@ -265,7 +268,8 @@ const leaveActivity = async (roleId) => {
     await loadActivity()
     ElMessage.success('已退出活动')
   } catch (err) {
-    if (err !== 'cancel') {
+    // 防抖错误和取消操作不显示提示
+    if (err !== 'cancel' && !err.silent) {
       ElMessage.error(err.response?.data?.error || '退出失败')
     }
   }
@@ -282,7 +286,8 @@ const closeActivity = async () => {
     await loadActivity()
     ElMessage.success('活动已关闭')
   } catch (err) {
-    if (err !== 'cancel') {
+    // 防抖错误和取消操作不显示提示
+    if (err !== 'cancel' && !err.silent) {
       ElMessage.error(err.response?.data?.error || '关闭失败')
     }
   }
@@ -300,7 +305,8 @@ const deleteActivity = async () => {
     ElMessage.success('活动已删除')
     router.push('/')
   } catch (err) {
-    if (err !== 'cancel') {
+    // 防抖错误和取消操作不显示提示
+    if (err !== 'cancel' && !err.silent) {
       ElMessage.error(err.response?.data?.error || '删除失败')
     }
   }

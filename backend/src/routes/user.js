@@ -122,6 +122,9 @@ export function createUserRoutes(app) {
         return c.json({ error: `该角色正在参与活动 "${participation.title}"，请先退出活动` }, 400);
       }
 
+      // 删除活动参与者记录
+      await DB.run('DELETE FROM activity_participants WHERE role_id = $1', [id]);
+
       // 删除角色
       await DB.run('DELETE FROM user_roles WHERE id = $1', [id]);
 

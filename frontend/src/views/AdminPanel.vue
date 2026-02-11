@@ -327,7 +327,7 @@ const approveRegistration = async (req) => {
     await loadPendingData()
     ElMessage.success('已批准')
   } catch (err) {
-    if (err !== 'cancel') {
+    if (err !== 'cancel' && !err.silent) {
       ElMessage.error(err.response?.data?.error || '操作失败')
     }
   }
@@ -344,7 +344,7 @@ const rejectRegistration = async (req) => {
     await loadPendingData()
     ElMessage.success('已拒绝')
   } catch (err) {
-    if (err !== 'cancel') {
+    if (err !== 'cancel' && !err.silent) {
       ElMessage.error(err.response?.data?.error || '操作失败')
     }
   }
@@ -361,7 +361,7 @@ const approvePasswordReset = async (req) => {
     await loadPendingData()
     ElMessage.success('已批准')
   } catch (err) {
-    if (err !== 'cancel') {
+    if (err !== 'cancel' && !err.silent) {
       ElMessage.error(err.response?.data?.error || '操作失败')
     }
   }
@@ -378,7 +378,7 @@ const rejectPasswordReset = async (req) => {
     await loadPendingData()
     ElMessage.success('已拒绝')
   } catch (err) {
-    if (err !== 'cancel') {
+    if (err !== 'cancel' && !err.silent) {
       ElMessage.error(err.response?.data?.error || '操作失败')
     }
   }
@@ -401,7 +401,9 @@ const addActivityType = async () => {
     await loadActivityTypes()
     ElMessage.success('添加成功')
   } catch (err) {
-    ElMessage.error(err.response?.data?.error || '添加失败')
+    if (!err.silent) {
+      ElMessage.error(err.response?.data?.error || '添加失败')
+    }
   } finally {
     addingType.value = false
   }
@@ -418,7 +420,7 @@ const deleteActivityType = async (id) => {
     await loadActivityTypes()
     ElMessage.success('删除成功')
   } catch (err) {
-    if (err !== 'cancel') {
+    if (err !== 'cancel' && !err.silent) {
       ElMessage.error(err.response?.data?.error || '删除失败')
     }
   }
@@ -465,7 +467,9 @@ const updateActivityType = async () => {
     closeEditDialog()
     ElMessage.success('更新成功')
   } catch (err) {
-    ElMessage.error(err.response?.data?.error || '更新失败')
+    if (!err.silent) {
+      ElMessage.error(err.response?.data?.error || '更新失败')
+    }
   }
 }
 

@@ -131,7 +131,10 @@ const handleCreate = async () => {
     })
     router.push(`/activity/${response.data.id}`)
   } catch (err) {
-    error.value = err.response?.data?.error || '创建失败'
+    // 防抖错误不显示提示
+    if (!err.silent) {
+      error.value = err.response?.data?.error || '创建失败'
+    }
   } finally {
     loading.value = false
   }
