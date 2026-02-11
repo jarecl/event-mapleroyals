@@ -93,11 +93,12 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { User, Lock } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const formRef = ref()
 
@@ -152,7 +153,13 @@ const handleLogin = async () => {
       mustChangePassword.value = true
       message.value = '请设置新密码'
     } else {
-      router.push('/')
+      // 登录成功，如果有重定向参数则跳转到原页面
+      const redirect = route.query.redirect
+      if (redirect && typeof redirect === 'string') {
+        router.push(redirect)
+      } else {
+        router.push('/')
+      }
     }
   } catch (err) {
     error.value = err.response?.data?.error || '登录失败'

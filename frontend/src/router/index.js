@@ -72,9 +72,21 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (to.meta.requiresAuth && !userStore.isLoggedIn) {
-    next('/login')
+    // 保存当前路由地址，登录后跳转回来
+    const redirect = to.fullPath !== '/' ? to.fullPath : undefined
+    if (redirect) {
+      next(`/login?redirect=${encodeURIComponent(redirect)}`)
+    } else {
+      next('/login')
+    }
   } else if (to.meta.guest && userStore.isLoggedIn) {
-    next('/')
+    // 如果已登录但访问游客页面，检查是否有重定向参数
+    const redirect = to.query.redirect
+    if (redirect && typeof redirect === 'string') {
+      next(redirect)
+    } else {
+      next('/')
+    }
   } else if (to.meta.requiresAdmin && !userStore.user?.isAdmin) {
     next('/')
   } else {

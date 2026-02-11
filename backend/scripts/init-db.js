@@ -136,6 +136,21 @@ async function initDatabase() {
         FOREIGN KEY (role_id) REFERENCES user_roles(id),
         UNIQUE(activity_id, role_id)
       );
+
+      -- Refresh Token 表（用于 Token 旋转和黑名单）
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        revoked_at TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+
+      -- 创建索引优化查询
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
     `);
 
     console.log('数据表创建完成');

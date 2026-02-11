@@ -1,13 +1,21 @@
 import { hashPassword, verifyPassword, validatePassword } from '../utils/password.js';
-import { validateUsername, generateId } from '../utils/validation.js';
-import { generateToken } from '../utils/jwt.js';
-import { getCurrentUser } from '../middleware/auth.js';
+import { validateUsername } from '../utils/validation.js';
+import { generateAccessToken, generateRefreshToken, createCookieString, verifyTokenDetailed, getRefreshTokenFromCookie } from '../utils/jwt.js';
+import { authMiddleware, getCurrentUser } from '../middleware/auth.js';
+import { storeRefreshToken, verifyRefreshToken, revokeRefreshToken } from '../redis.js';
+import crypto from 'crypto';
+
+const ACCESS_TOKEN_MAX_AGE = 15 * 60; // 15分钟
+const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60; // 7天
 
 /**
  * 创建认证路由
  * @param {Hono} app - Hono 应用
  */
 export function createAuthRoutes(app) {
+  // 应用认证中间件到需要登录的路由
+  app.use('/api/auth/user', authMiddleware(app.env?.JWT_SECRET || process.env.JWT_SECRET || ''));
+  app.use('/api/auth/change-password', authMiddleware(app.env?.JWT_SECRET || process.env.JWT_SECRET || ''));
   // 用户注册
   app.post('/api/auth/register', async (c) => {
     try {
@@ -108,17 +116,23 @@ export function createAuthRoutes(app) {
           [newPasswordHash, false, user.id]
         );
 
-        // 生成 token 并返回
-        const token = generateToken(
-          { id: user.id, username: user.username, isAdmin: user.is_admin === true },
-          JWT_SECRET
-        );
+        // 生成双 Token
+        const userPayload = { id: user.id, username: user.username, isAdmin: user.is_admin === true };
+        const accessToken = generateAccessToken(userPayload, JWT_SECRET);
+        const refreshToken = generateRefreshToken(userPayload, JWT_SECRET);
+
+        // 存储 Refresh Token 到 Redis
+        const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+        await storeRefreshToken(tokenHash, user.id, REFRESH_TOKEN_MAX_AGE);
 
         return c.json({
           message: '密码修改成功',
-          user: { id: user.id, username: user.username, isAdmin: user.is_admin === true }
+          user: userPayload
         }, 200, {
-          'Set-Cookie': `auth_token=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800`
+          'Set-Cookie': [
+            createCookieString('access_token', accessToken, ACCESS_TOKEN_MAX_AGE),
+            createCookieString('refresh_token', refreshToken, REFRESH_TOKEN_MAX_AGE)
+          ]
         });
       }
 
@@ -128,17 +142,23 @@ export function createAuthRoutes(app) {
         return c.json({ error: '用户名或密码错误' }, 401);
       }
 
-      // 生成 token
-      const token = generateToken(
-        { id: user.id, username: user.username, isAdmin: user.is_admin === true },
-        JWT_SECRET
-      );
+      // 生成双 Token
+      const userPayload = { id: user.id, username: user.username, isAdmin: user.is_admin === true };
+      const accessToken = generateAccessToken(userPayload, JWT_SECRET);
+      const refreshToken = generateRefreshToken(userPayload, JWT_SECRET);
+
+      // 存储 Refresh Token 到 Redis
+      const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      await storeRefreshToken(tokenHash, user.id, REFRESH_TOKEN_MAX_AGE);
 
       return c.json({
         message: '登录成功',
-        user: { id: user.id, username: user.username, isAdmin: user.is_admin === true }
+        user: userPayload
       }, 200, {
-        'Set-Cookie': `auth_token=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800`
+        'Set-Cookie': [
+          createCookieString('access_token', accessToken, ACCESS_TOKEN_MAX_AGE),
+          createCookieString('refresh_token', refreshToken, REFRESH_TOKEN_MAX_AGE)
+        ]
       });
     } catch (error) {
       console.error('登录错误:', error);
@@ -276,10 +296,84 @@ export function createAuthRoutes(app) {
     }
   });
 
+  // 刷新 Token 接口（供前端主动刷新使用）
+  app.post('/api/auth/refresh', async (c) => {
+    try {
+      const { DB, JWT_SECRET } = c.env;
+      const refreshToken = getRefreshTokenFromCookie(c.req.raw);
+
+      if (!refreshToken) {
+        return c.json({ error: '登录已过期，请重新登录' }, 401);
+      }
+
+      // 验证 Refresh Token
+      const refreshResult = verifyTokenDetailed(refreshToken, JWT_SECRET);
+
+      if (!refreshResult.valid) {
+        return c.json({ error: 'Refresh Token 无效' }, 401);
+      }
+
+      // 检查 Refresh Token 是否有效（Redis 验证）
+      const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      const storedToken = await verifyRefreshToken(tokenHash);
+
+      if (!storedToken) {
+        return c.json({ error: 'Refresh Token 已失效' }, 401);
+      }
+
+      // 生成新的 Token 对
+      const userPayload = {
+        id: refreshResult.payload.id,
+        username: refreshResult.payload.username,
+        isAdmin: refreshResult.payload.isAdmin
+      };
+
+      const newAccessToken = generateAccessToken(userPayload, JWT_SECRET);
+      const newRefreshToken = generateRefreshToken(userPayload, JWT_SECRET);
+      const newTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
+
+      // 撤销旧的 Refresh Token（删除 Redis 键）
+      await revokeRefreshToken(tokenHash);
+
+      // 存储新的 Refresh Token 到 Redis
+      await storeRefreshToken(newTokenHash, userPayload.id, REFRESH_TOKEN_MAX_AGE);
+
+      return c.json({
+        message: 'Token 刷新成功',
+        user: userPayload
+      }, 200, {
+        'Set-Cookie': [
+          createCookieString('access_token', newAccessToken, ACCESS_TOKEN_MAX_AGE),
+          createCookieString('refresh_token', newRefreshToken, REFRESH_TOKEN_MAX_AGE)
+        ]
+      });
+    } catch (error) {
+      console.error('刷新 Token 错误:', error);
+      return c.json({ error: '刷新失败' }, 500);
+    }
+  });
+
   // 退出登录
   app.post('/api/auth/logout', async (c) => {
-    return c.json({ message: '已退出登录' }, 200, {
-      'Set-Cookie': 'auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'
-    });
+    try {
+      const { DB } = c.env;
+      const refreshToken = getRefreshTokenFromCookie(c.req.raw);
+
+      // 如果存在 Refresh Token，将其撤销（从 Redis 删除）
+      if (refreshToken) {
+        const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+        await revokeRefreshToken(tokenHash);
+      }
+
+      return c.json({ message: '已退出登录' }, 200, {
+        'Set-Cookie': [
+          createCookieString('access_token', '', 0),
+          createCookieString('refresh_token', '', 0)
+        ]
+      });
+    } catch (error) {
+      console.error('退出登录错误:', error);
+      return c.json({ error: '退出失败' }, 500);
+    }
   });
 }
