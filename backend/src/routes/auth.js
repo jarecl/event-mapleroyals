@@ -1,5 +1,5 @@
 import { hashPassword, verifyPassword, validatePassword } from '../utils/password.js';
-import { validateUsername } from '../utils/validation.js';
+import { validateUsername, generateId } from '../utils/validation.js';
 import { generateAccessToken, generateRefreshToken, createCookieString, verifyTokenDetailed, getRefreshTokenFromCookie } from '../utils/jwt.js';
 import { authMiddleware, getCurrentUser } from '../middleware/auth.js';
 import { storeRefreshToken, verifyRefreshToken, revokeRefreshToken } from '../redis.js';
