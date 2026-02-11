@@ -1,0 +1,20 @@
+{
+  "name": "mapleroyals-events-backend",
+  "version": "1.0.0",
+  "description": "MapleRoyals 活动管理系统后端",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "db:init": "node scripts/init-db.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.0.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^17.2.4",
+    "hono": "^4.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.0"
+  }
+}
