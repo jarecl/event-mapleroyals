@@ -242,7 +242,7 @@ export function createAuthRoutes(app) {
   });
 
   // 获取当前用户信息
-  app.get('/api/auth/me', async (c) => {
+  app.get('/api/auth/user', async (c) => {
     try {
       const { DB } = c.env;
       const currentUser = getCurrentUser(c);

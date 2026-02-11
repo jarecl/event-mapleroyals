@@ -2,20 +2,56 @@ import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import 'dotenv/config';
 
-const { Pool } = pg;
+const { Pool, Client } = pg;
 
-// PostgreSQL 连接配置（从环境变量读取）
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'mapleroyals',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || '',
-});
+const dbName = process.env.DB_NAME || 'mapleroyals';
 
 console.log('初始化数据库...');
 
 async function initDatabase() {
+  // 第一步：连接到 postgres 数据库（用于创建目标数据库）
+  const client = new Client({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: 'postgres',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '',
+  });
+
+  try {
+    await client.connect();
+    
+    // 检查数据库是否存在
+    const checkResult = await client.query(
+      'SELECT 1 FROM pg_database WHERE datname = $1',
+      [dbName]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      // 数据库不存在，创建它
+      console.log(`数据库 ${dbName} 不存在，正在创建...`);
+      await client.query(`CREATE DATABASE "${dbName}"`);
+      console.log(`数据库 ${dbName} 创建成功`);
+    } else {
+      console.log(`数据库 ${dbName} 已存在`);
+    }
+    
+    await client.end();
+  } catch (error) {
+    console.error('创建数据库失败:', error);
+    await client.end();
+    return;
+  }
+
+  // 第二步：连接到目标数据库，创建表
+  const pool = new Pool({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: dbName,
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '',
+  });
+
   try {
     // 创建表
     await pool.query(`

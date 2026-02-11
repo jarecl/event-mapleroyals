@@ -20,7 +20,7 @@ export const useUserStore = defineStore('user', () => {
 
   async function checkAuth() {
     try {
-      const response = await api.get('/auth/me')
+      const response = await api.get('/auth/user')
       user.value = response.data.user
     } catch (error) {
       user.value = null
