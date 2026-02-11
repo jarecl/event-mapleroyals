@@ -7,9 +7,7 @@
       <el-tab-pane label="待处理工单" name="pending">
         <el-skeleton :loading="loading" :rows="3" animated>
           <template #default>
-            <el-empty v-if="pendingData.registrations.length === 0 && pendingData.passwordResets.length === 0" description="暂无待处理的工单" />
-
-            <el-row :gutter="16" v-else>
+            <el-row :gutter="16">
               <el-col :xs="24" :lg="12">
                 <el-card>
                   <template #header>
