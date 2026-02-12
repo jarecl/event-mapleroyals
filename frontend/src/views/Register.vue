@@ -43,6 +43,18 @@
           <div class="form-hint">必须是纯数字，最多13位</div>
         </el-form-item>
 
+        <el-form-item prop="nickname">
+          <el-input
+            v-model="formData.nickname"
+            placeholder="请输入昵称如丁真"
+            :prefix-icon="User"
+            size="large"
+            maxlength="20"
+            clearable
+          />
+          <div class="form-hint">用于显示的昵称，最多20个字符</div>
+        </el-form-item>
+
         <el-form-item prop="password">
           <el-input
             v-model="formData.password"
@@ -103,9 +115,20 @@ const formRef = ref()
 
 const formData = reactive({
   username: '',
+  nickname: '',
   password: '',
   confirmPassword: ''
 })
+
+const validateNickname = (rule, value, callback) => {
+  if (!value) {
+    callback(new Error('请输入昵称'))
+  } else if (value.trim().length > 20) {
+    callback(new Error('昵称不能超过20个字符'))
+  } else {
+    callback()
+  }
+}
 
 const validateUsername = (rule, value, callback) => {
   if (!value) {
@@ -146,6 +169,7 @@ const validateConfirmPassword = (rule, value, callback) => {
 
 const rules = {
   username: [{ validator: validateUsername, trigger: 'blur' }],
+  nickname: [{ validator: validateNickname, trigger: 'blur' }],
   password: [{ validator: validatePassword, trigger: 'blur' }],
   confirmPassword: [{ validator: validateConfirmPassword, trigger: 'blur' }]
 }
@@ -165,11 +189,13 @@ const handleRegister = async () => {
   try {
     const result = await userStore.register(
       formData.username,
+      formData.nickname,
       formData.password,
       formData.confirmPassword
     )
     success.value = result.message
     formData.username = ''
+    formData.nickname = ''
     formData.password = ''
     formData.confirmPassword = ''
     formRef.value?.resetFields()

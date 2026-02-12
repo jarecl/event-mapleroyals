@@ -24,7 +24,7 @@ export function createAdminRoutes(app) {
 
       // 获取待处理的注册请求
       const registrationRequests = await DB.all(
-        'SELECT id, username, status, created_at FROM registration_requests WHERE status = $1 ORDER BY created_at DESC',
+        'SELECT id, username, nickname, status, created_at FROM registration_requests WHERE status = $1 ORDER BY created_at DESC',
         ['pending']
       );
 
@@ -59,7 +59,7 @@ export function createAdminRoutes(app) {
 
       if (type === 'registration' || !type) {
         const registrations = await DB.all(
-          `SELECT rr.id, rr.username, rr.status, rr.admin_note, rr.created_at, rr.processed_at,
+          `SELECT rr.id, rr.username, rr.nickname, rr.status, rr.admin_note, rr.created_at, rr.processed_at,
                   u.username as processed_by_name
            FROM registration_requests rr
            LEFT JOIN users u ON rr.processed_by = u.id
@@ -120,8 +120,8 @@ export function createAdminRoutes(app) {
       // 创建用户
       const userId = generateId();
       await DB.run(
-        'INSERT INTO users (id, username, password_hash, is_admin, must_change_password) VALUES ($1, $2, $3, $4, $5)',
-        [userId, request.username, request.password_hash, false, false]
+        'INSERT INTO users (id, username, nickname, password_hash, is_admin, must_change_password) VALUES ($1, $2, $3, $4, $5, $6)',
+        [userId, request.username, request.nickname, request.password_hash, false, false]
       );
 
       // 更新注册请求状态
@@ -323,7 +323,7 @@ export function createAdminRoutes(app) {
     try {
       const { DB } = c.env;
       const users = await DB.all(
-        'SELECT id, username, is_admin, must_change_password, created_at FROM users ORDER BY created_at DESC'
+        'SELECT id, username, nickname, is_admin, must_change_password, created_at FROM users ORDER BY created_at DESC'
       );
 
       return c.json({ users });

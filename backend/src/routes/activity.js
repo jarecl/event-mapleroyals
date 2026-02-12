@@ -137,7 +137,7 @@ export function createActivityRoutes(app) {
       const participants = await DB.all(
         `SELECT ap.id as participation_id, ap.role_id, ap.joined_at, ap.position_preferences,
                 ur.character_name, ur.job, ur.level, ur.gender, ur.marriage_status,
-                u.username
+                u.username, u.nickname
          FROM activity_participants ap
          JOIN user_roles ur ON ap.role_id = ur.id
          JOIN users u ON ap.user_id = u.id
@@ -146,17 +146,21 @@ export function createActivityRoutes(app) {
         [id]
       );
 
-      // 解析位置偏好JSON
+      // 解析位置偏好JSON，并处理昵称显示
       participants.forEach(p => {
-        if (p.position_preferences) {
+        // 处理位置偏好
+        if (p.position_preferences && p.position_preferences.trim() !== '') {
           try {
             p.position_preferences = JSON.parse(p.position_preferences);
           } catch (e) {
+            console.error('解析位置偏好失败:', e, '原始值:', p.position_preferences);
             p.position_preferences = [];
           }
         } else {
           p.position_preferences = [];
         }
+        // 如果没有昵称，使用用户名作为默认值
+        p.display_name = p.nickname || p.username;
       });
 
       return c.json({

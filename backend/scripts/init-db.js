@@ -59,6 +59,7 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
+        nickname TEXT,
         password_hash TEXT NOT NULL,
         is_admin BOOLEAN DEFAULT FALSE,
         must_change_password BOOLEAN DEFAULT FALSE,
@@ -69,6 +70,7 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS registration_requests (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
+        nickname TEXT,
         password_hash TEXT NOT NULL,
         status TEXT DEFAULT 'pending',
         admin_note TEXT,

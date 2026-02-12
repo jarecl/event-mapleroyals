@@ -9,7 +9,7 @@
         <el-dropdown @command="handleCommand">
           <span class="user-dropdown">
             <el-icon><User /></el-icon>
-            {{ userStore.user?.username }}
+            {{ userStore.user?.nickname || userStore.user?.username }}
             <el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </span>
           <template #dropdown>

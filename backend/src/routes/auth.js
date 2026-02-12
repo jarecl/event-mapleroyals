@@ -20,12 +20,21 @@ export function createAuthRoutes(app) {
   app.post('/api/auth/register', async (c) => {
     try {
       const { DB } = c.env;
-      const { username, password, confirmPassword } = await c.req.json();
+      const { username, nickname, password, confirmPassword } = await c.req.json();
 
       // 验证用户名
       const usernameValidation = validateUsername(username);
       if (!usernameValidation.valid) {
         return c.json({ error: usernameValidation.message }, 400);
+      }
+
+      // 验证昵称
+      if (!nickname || nickname.trim().length === 0) {
+        return c.json({ error: '请输入昵称' }, 400);
+      }
+
+      if (nickname.trim().length > 20) {
+        return c.json({ error: '昵称不能超过20个字符' }, 400);
       }
 
       // 验证密码
@@ -65,8 +74,8 @@ export function createAuthRoutes(app) {
       // 创建注册请求
       const requestId = generateId();
       await DB.run(
-        'INSERT INTO registration_requests (id, username, password_hash, status) VALUES ($1, $2, $3, $4)',
-        [requestId, username, passwordHash, 'pending']
+        'INSERT INTO registration_requests (id, username, nickname, password_hash, status) VALUES ($1, $2, $3, $4, $5)',
+        [requestId, username, nickname.trim(), passwordHash, 'pending']
       );
 
       return c.json({ message: '注册申请已提交，请等待管理员审批' });
@@ -117,7 +126,7 @@ export function createAuthRoutes(app) {
         );
 
         // 生成双 Token
-        const userPayload = { id: user.id, username: user.username, isAdmin: user.is_admin === true };
+        const userPayload = { id: user.id, username: user.username, nickname: user.nickname || user.username, isAdmin: user.is_admin === true };
         const accessToken = generateAccessToken(userPayload, JWT_SECRET);
         const refreshToken = generateRefreshToken(userPayload, JWT_SECRET);
 
@@ -143,7 +152,7 @@ export function createAuthRoutes(app) {
       }
 
       // 生成双 Token
-      const userPayload = { id: user.id, username: user.username, isAdmin: user.is_admin === true };
+      const userPayload = { id: user.id, username: user.username, nickname: user.nickname || user.username, isAdmin: user.is_admin === true };
       const accessToken = generateAccessToken(userPayload, JWT_SECRET);
       const refreshToken = generateRefreshToken(userPayload, JWT_SECRET);
 
@@ -273,7 +282,7 @@ export function createAuthRoutes(app) {
       }
 
       const user = await DB.get(
-        'SELECT id, username, is_admin, must_change_password, created_at FROM users WHERE id = $1',
+        'SELECT id, username, nickname, is_admin, must_change_password, created_at FROM users WHERE id = $1',
         [currentUser.id]
       );
 
@@ -285,6 +294,7 @@ export function createAuthRoutes(app) {
         user: {
           id: user.id,
           username: user.username,
+          nickname: user.nickname || user.username,
           isAdmin: user.is_admin === true,
           mustChangePassword: user.must_change_password === true,
           createdAt: user.created_at
@@ -325,6 +335,7 @@ export function createAuthRoutes(app) {
       const userPayload = {
         id: refreshResult.payload.id,
         username: refreshResult.payload.username,
+        nickname: refreshResult.payload.nickname || refreshResult.payload.username,
         isAdmin: refreshResult.payload.isAdmin
       };
 

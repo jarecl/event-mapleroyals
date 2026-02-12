@@ -129,8 +129,8 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  async function register(username, password, confirmPassword) {
-    const response = await api.post('/auth/register', { username, password, confirmPassword })
+  async function register(username, nickname, password, confirmPassword) {
+    const response = await api.post('/auth/register', { username, nickname, password, confirmPassword })
     return response.data
   }
 

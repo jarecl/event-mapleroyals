@@ -143,7 +143,7 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column prop="username" label="用户" width="100" />
+              <el-table-column prop="display_name" label="用户" width="100" />
               <el-table-column label="操作" width="100" align="center">
                 <template #default="{ row }">
                   <el-button
