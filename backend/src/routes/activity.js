@@ -135,7 +135,7 @@ export function createActivityRoutes(app) {
 
       // 获取参与者列表
       const participants = await DB.all(
-        `SELECT ap.id as participation_id, ap.role_id, ap.joined_at,
+        `SELECT ap.id as participation_id, ap.role_id, ap.joined_at, ap.position_preferences,
                 ur.character_name, ur.job, ur.level, ur.gender, ur.marriage_status,
                 u.username
          FROM activity_participants ap
@@ -145,6 +145,19 @@ export function createActivityRoutes(app) {
          ORDER BY ap.joined_at ASC`,
         [id]
       );
+
+      // 解析位置偏好JSON
+      participants.forEach(p => {
+        if (p.position_preferences) {
+          try {
+            p.position_preferences = JSON.parse(p.position_preferences);
+          } catch (e) {
+            p.position_preferences = [];
+          }
+        } else {
+          p.position_preferences = [];
+        }
+      });
 
       return c.json({
         activity: {
@@ -278,6 +291,73 @@ export function createActivityRoutes(app) {
     }
   });
 
+  // 更新位置偏好（参与者）- 仅适用于APQ等活动
+  app.put('/api/activities/:id/position-preferences', async (c, next) => {
+    const { JWT_SECRET } = c.env;
+    return authMiddleware(JWT_SECRET)(c, next);
+  }, async (c) => {
+    try {
+      const { DB } = c.env;
+      const currentUser = getCurrentUser(c);
+      const { id } = c.req.param();
+      const { roleIds, positions } = await c.req.json();
+
+      if (!roleIds || !Array.isArray(roleIds) || roleIds.length === 0) {
+        return c.json({ error: '请指定要更新的角色' }, 400);
+      }
+
+      if (!positions || !Array.isArray(positions)) {
+        return c.json({ error: '请选择位置偏好' }, 400);
+      }
+
+      // 验证位置值在1-6范围内
+      const validPositions = positions.filter(p => p >= 1 && p <= 6);
+      if (validPositions.length === 0) {
+        return c.json({ error: '位置偏好必须在1-6范围内' }, 400);
+      }
+
+      // 检查活动是否为APQ类型
+      const activity = await DB.get(
+        `SELECT a.type_id
+         FROM activities a
+         WHERE a.id = $1`,
+        [id]
+      );
+
+      if (!activity) {
+        return c.json({ error: '活动不存在' }, 404);
+      }
+
+      if (activity.type_id !== 'type-apq') {
+        return c.json({ error: '只有APQ活动支持位置偏好设置' }, 400);
+      }
+
+      // 更新每个角色的位置偏好
+      for (const roleId of roleIds) {
+        // 验证角色属于当前用户
+        const participation = await DB.get(
+          'SELECT id FROM activity_participants WHERE activity_id = $1 AND role_id = $2 AND user_id = $3',
+          [id, roleId, currentUser.id]
+        );
+
+        if (!participation) {
+          continue; // 跳过不属于当前用户的角色
+        }
+
+        // 更新位置偏好
+        await DB.run(
+          'UPDATE activity_participants SET position_preferences = $1 WHERE id = $2',
+          [JSON.stringify(validPositions), participation.id]
+        );
+      }
+
+      return c.json({ message: '位置偏好已更新' });
+    } catch (error) {
+      console.error('更新位置偏好错误:', error);
+      return c.json({ error: '更新位置偏好失败' }, 500);
+    }
+  });
+
   // 更新活动状态（创建者或管理员）
   app.put('/api/activities/:id/status', async (c, next) => {
     const { JWT_SECRET } = c.env;
@@ -328,41 +408,6 @@ export function createActivityRoutes(app) {
     }
   });
 
-  // 关闭活动（创建者）- 保留旧接口兼容
-  app.post('/api/activities/:id/close', async (c, next) => {
-    const { JWT_SECRET } = c.env;
-    return authMiddleware(JWT_SECRET)(c, next);
-  }, async (c) => {
-    try {
-      const { DB } = c.env;
-      const currentUser = getCurrentUser(c);
-      const { id } = c.req.param();
-
-      const activity = await DB.get(
-        'SELECT id, creator_id FROM activities WHERE id = $1',
-        [id]
-      );
-
-      if (!activity) {
-        return c.json({ error: '活动不存在' }, 404);
-      }
-
-      if (activity.creator_id !== currentUser.id && !currentUser.isAdmin) {
-        return c.json({ error: '只有活动创建者或管理员可以关闭活动' }, 403);
-      }
-
-      await DB.run(
-        'UPDATE activities SET status = $1 WHERE id = $2',
-        ['cancelled', id]
-      );
-
-      return c.json({ message: '活动已关闭' });
-    } catch (error) {
-      console.error('关闭活动错误:', error);
-      return c.json({ error: '关闭活动失败' }, 500);
-    }
-  });
-
   // 完成活动（创建者）- 保留旧接口兼容
   app.post('/api/activities/:id/complete', async (c, next) => {
     const { JWT_SECRET } = c.env;
@@ -398,7 +443,7 @@ export function createActivityRoutes(app) {
     }
   });
 
-  // 删除活动（创建者）
+  // 删除活动（创建者）- 只能删除已取消的活动
   app.delete('/api/activities/:id', async (c, next) => {
     const { JWT_SECRET } = c.env;
     return authMiddleware(JWT_SECRET)(c, next);
@@ -409,7 +454,7 @@ export function createActivityRoutes(app) {
       const { id } = c.req.param();
 
       const activity = await DB.get(
-        'SELECT id, creator_id FROM activities WHERE id = $1',
+        'SELECT id, creator_id, status FROM activities WHERE id = $1',
         [id]
       );
 
@@ -419,6 +464,11 @@ export function createActivityRoutes(app) {
 
       if (activity.creator_id !== currentUser.id) {
         return c.json({ error: '只有活动创建者可以删除活动' }, 403);
+      }
+
+      // 只能删除已取消的活动
+      if (activity.status !== 'cancelled') {
+        return c.json({ error: '只能删除已取消状态的活动' }, 400);
       }
 
       // 先删除参与者记录

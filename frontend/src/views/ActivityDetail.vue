@@ -7,27 +7,8 @@
           <div class="page-header">
             <h1 class="page-title">{{ activity.title }}</h1>
             <div class="action-buttons">
-              <!-- 状态编辑下拉栏（仅创建者或管理员） -->
-              <el-select
-                v-if="canEditStatus"
-                v-model="activity.status"
-                style="width: 120px; margin-right: 12px"
-                size="default"
-                @change="updateStatus"
-              >
-                <el-option label="募集中" value="open" />
-                <el-option label="进行中" value="in_progress" />
-                <el-option label="已完成" value="completed" />
-                <el-option label="已取消" value="cancelled" />
-              </el-select>
               <el-button
-                v-if="isCreator && activity.status === 'open'"
-                @click="closeActivity"
-              >
-                关闭活动
-              </el-button>
-              <el-button
-                v-if="isCreator || isAdmin"
+                v-if="(isCreator || isAdmin) && activity.status === 'cancelled'"
                 type="danger"
                 @click="deleteActivity"
               >
@@ -42,9 +23,31 @@
               <el-tag type="primary">{{ activity.type_name }}</el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="状态">
-              <el-tag :type="getStatusType(activity.status)">
-                {{ statusText(activity.status) }}
-              </el-tag>
+              <div class="status-display">
+                <template v-if="!editingStatus">
+                  <el-tag :type="getStatusType(activity.status)">
+                    {{ statusText(activity.status) }}
+                  </el-tag>
+                  <el-button
+                    v-if="canEditStatus"
+                    type="primary"
+                    link
+                    @click="startEditStatus"
+                  >
+                    编辑
+                  </el-button>
+                </template>
+                <template v-else>
+                  <el-select v-model="tempStatus" size="small" style="width: 120px">
+                    <el-option label="募集中" value="open" />
+                    <el-option label="进行中" value="in_progress" />
+                    <el-option label="已完成" value="completed" />
+                    <el-option label="已取消" value="cancelled" />
+                  </el-select>
+                  <el-button type="primary" size="small" @click="confirmStatusEdit">确定</el-button>
+                  <el-button size="small" @click="cancelStatusEdit">取消</el-button>
+                </template>
+              </div>
             </el-descriptions-item>
             <el-descriptions-item label="人数">
               {{ activity.participantCount }} / {{ activity.max_participants }}
@@ -72,17 +75,17 @@
             <el-empty v-if="activity.participants.length === 0" description="暂无参与者" />
 
             <el-table v-else :data="activity.participants" stripe>
-              <el-table-column prop="character_name" label="角色名" width="150" />
-              <el-table-column prop="job" label="职业" />
-              <el-table-column prop="level" label="等级" width="80" align="center" />
-              <el-table-column label="性别" width="80" align="center">
+              <el-table-column prop="character_name" label="角色名" width="100" />
+              <el-table-column prop="job" label="职业" width="70" />
+              <el-table-column prop="level" label="等级" width="60" align="center" />
+              <el-table-column label="性别" width="60" align="center">
                 <template #default="{ row }">
                   <el-tag :type="row.gender === 'male' ? 'primary' : 'danger'" size="small">
                     {{ row.gender === 'male' ? '男' : '女' }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="婚姻状态" width="100" align="center">
+              <el-table-column label="婚姻状态" width="80" align="center">
                 <template #default="{ row }">
                   <el-tag v-if="row.marriage_status !== 'single'" type="warning" size="small">
                     {{ marriageText(row.marriage_status) }}
@@ -90,7 +93,57 @@
                   <span v-else class="text-muted">未婚</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="username" label="用户" width="120" />
+              <!-- APQ活动位置偏好 -->
+              <el-table-column v-if="isAPQActivity" label="位置偏好" width="280" align="center">
+                <template #default="{ row }">
+                  <div v-if="row.username === currentUsername" class="position-selector">
+                    <template v-if="editingPositionPref[row.role_id]">
+                      <el-checkbox-group v-model="tempPositionPrefs[row.role_id]" size="small">
+                        <el-checkbox-button v-for="pos in 6" :key="pos" :label="pos">
+                          {{ pos }}
+                        </el-checkbox-button>
+                      </el-checkbox-group>
+                      <div class="position-actions">
+                        <el-button type="primary" size="small" @click="savePositionPref(row.role_id)">保存</el-button>
+                        <el-button size="small" @click="cancelPositionPref(row.role_id)">取消</el-button>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div v-if="row.position_preferences && row.position_preferences.length > 0" class="position-display">
+                        <el-tag
+                          v-for="pos in sortedPositionPrefs(row.position_preferences)"
+                          :key="pos"
+                          type="info"
+                          size="small"
+                          class="position-tag"
+                        >
+                          {{ pos }}
+                        </el-tag>
+                        <el-button type="primary" link size="small" @click="startEditPositionPref(row)">编辑</el-button>
+                      </div>
+                      <div v-else class="position-display">
+                        <span class="text-muted">未设置</span>
+                        <el-button type="primary" link size="small" @click="startEditPositionPref(row)">设置</el-button>
+                      </div>
+                    </template>
+                  </div>
+                  <div v-else class="position-display">
+                    <template v-if="row.position_preferences && row.position_preferences.length > 0">
+                      <el-tag
+                        v-for="pos in sortedPositionPrefs(row.position_preferences)"
+                        :key="pos"
+                        type="info"
+                        size="small"
+                        class="position-tag"
+                      >
+                        {{ pos }}
+                      </el-tag>
+                    </template>
+                    <span v-else class="text-muted">未设置</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="username" label="用户" width="100" />
               <el-table-column label="操作" width="100" align="center">
                 <template #default="{ row }">
                   <el-button
@@ -177,6 +230,10 @@ const myRoles = ref([])
 const loading = ref(true)
 const joining = ref(false)
 const selectedRoles = ref([])
+const editingStatus = ref(false)
+const tempStatus = ref('')
+const editingPositionPref = ref({})
+const tempPositionPrefs = ref({})
 
 const isCreator = computed(() => {
   return activity.value?.creator_id === userStore.user?.id
@@ -199,6 +256,16 @@ const canLeave = computed(() => {
 })
 
 const currentUsername = computed(() => userStore.user?.username)
+
+const isAPQActivity = computed(() => {
+  return activity.value?.type_id === 'type-apq'
+})
+
+// 位置偏好排序（从小到大）
+const sortedPositionPrefs = (prefs) => {
+  if (!prefs || !Array.isArray(prefs)) return []
+  return [...prefs].sort((a, b) => a - b)
+}
 
 const statusText = (status) => {
   const map = {
@@ -300,36 +367,31 @@ const leaveActivity = async (roleId) => {
   }
 }
 
-const closeActivity = async () => {
+const startEditStatus = () => {
+  tempStatus.value = activity.value.status
+  editingStatus.value = true
+}
+
+const confirmStatusEdit = async () => {
+  if (tempStatus.value === activity.value.status) {
+    editingStatus.value = false
+    return
+  }
   try {
-    await ElMessageBox.confirm('确定要关闭此活动吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    await api.post(`/activities/${route.params.id}/close`)
+    await api.put(`/activities/${route.params.id}/status`, { status: tempStatus.value })
+    ElMessage.success('状态已更新')
     await loadActivity()
-    ElMessage.success('活动已关闭')
+    editingStatus.value = false
   } catch (err) {
-    // 防抖错误和取消操作不显示提示
-    if (err !== 'cancel' && !err.silent) {
-      ElMessage.error(err.response?.data?.error || '关闭失败')
+    if (!err.silent) {
+      ElMessage.error(err.response?.data?.error || '状态更新失败')
     }
   }
 }
 
-const updateStatus = async (newStatus) => {
-  try {
-    await api.put(`/activities/${route.params.id}/status`, { status: newStatus })
-    ElMessage.success('状态已更新')
-    await loadActivity()
-  } catch (err) {
-    if (!err.silent) {
-      ElMessage.error(err.response?.data?.error || '状态更新失败')
-      // 恢复原状态
-      await loadActivity()
-    }
-  }
+const cancelStatusEdit = () => {
+  tempStatus.value = activity.value.status
+  editingStatus.value = false
 }
 
 const deleteActivity = async () => {
@@ -349,6 +411,33 @@ const deleteActivity = async () => {
       ElMessage.error(err.response?.data?.error || '删除失败')
     }
   }
+}
+
+// 位置偏好编辑相关方法
+const startEditPositionPref = (row) => {
+  editingPositionPref.value[row.role_id] = true
+  tempPositionPrefs.value[row.role_id] = [...(row.position_preferences || [])]
+}
+
+const savePositionPref = async (roleId) => {
+  try {
+    await api.put(`/activities/${route.params.id}/position-preferences`, {
+      roleIds: [roleId],
+      positions: tempPositionPrefs.value[roleId]
+    })
+    ElMessage.success('位置偏好已更新')
+    editingPositionPref.value[roleId] = false
+    await loadActivity()
+  } catch (err) {
+    if (!err.silent) {
+      ElMessage.error(err.response?.data?.error || '更新位置偏好失败')
+    }
+  }
+}
+
+const cancelPositionPref = (roleId) => {
+  editingPositionPref.value[roleId] = false
+  tempPositionPrefs.value[roleId] = []
 }
 
 onMounted(() => {
@@ -446,5 +535,37 @@ onMounted(() => {
 
 .ml-8 {
   margin-left: 8px;
+}
+
+.status-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.position-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.position-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.position-tag {
+  margin: 0;
+}
+
+.position-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  justify-content: center;
 }
 </style>
